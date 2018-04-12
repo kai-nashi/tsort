@@ -1,10 +1,17 @@
 #ifndef TSORT_H_INCLUDED
 #define TSORT_H_INCLUDED
 
-int bisect(void*, int, const void*, int (*comparator)(const void*, const void*));
-int compair_parts(const void*, const void*);
-void* merge(struct pthread_args*, int (*comparator)(const void*, const void*), int);
-void* tsort(void*, int, int, int (*comparator)(const void*, const void*), int);
-void* qsort_thread(void*);
+struct pthread_args {
+    void*       dataPointer;
+    int         dataLength;
+    int         dataSize;
+    int         (*comparator)(const void*, const void*);
+};
+
+int bisect(void* massive[], int massive_length, const void* value, int (*comparator)(const void*, const void*));
+int compair_parts(const void* pointer_a, const void* pointer_b);
+void* merge(struct pthread_args* args, int (*comparator)(const void*, const void*), int threads_max);
+void* tsort(void* dataPointer, int dataLength, int dataSize, int (*comparator)(const void*, const void*), int threads_max);
+void* qsort_thread(void* args_pointer);
 
 #endif // TSORT_H_INCLUDED

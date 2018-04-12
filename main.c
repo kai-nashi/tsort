@@ -1,6 +1,10 @@
+#include <dirent.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/time.h>
+#include <sys/stat.h>
 
 #include "tsort.h"
 
@@ -24,6 +28,10 @@ void* generator_struct(void*, int);
 void print_massive_char(void*, int, char*);
 void print_massive_int(void*, int, char*);
 void print_massive_struct(void*, int, char*);
+
+void save_massive_char(void*, int, char*);
+void save_massive_int(void*, int, char*);
+void save_massive_struct(void*, int, char*);
 
 float* test_body(int, int, int, void* (*generator)(void*, int), int (*comparator)(const void*, const void*), void (*printer)(void*, int, char*), int);
 void test_suite(int, int, int, int, void* (*generator)(void*, int), int (*comparator)(const void*, const void*), void (*printer)(void*, int, char*), char*, int);
@@ -143,6 +151,49 @@ void print_massive_struct(void* massive, int massive_length, char msg[]) {
     printf("\n");
 }
 
+void save_massive(void* massive, int massive_length, int data_size, char file_name[]) {
+
+    char dir_name[] = "results";
+    DIR* dir = opendir(dir_name);
+    if (dir)
+    {
+        closedir(dir);
+    }
+    else if (ENOENT == errno)
+    {
+        if (mkdir(dir_name, 777) < 0) {
+            printf("Can't create directory '%s'.\n%s\n", dir_name, strerror(errno));
+            return;
+        };
+    }
+    else
+    {
+        printf("Can't open directory '%s'.\n%s\n", dir_name, strerror(errno));
+        return;
+    }
+
+    int index = 0;
+    char real_file_name[128];
+    FILE *file_stream = 1;
+
+    while (index == 0 || file_stream != NULL) {
+        sprintf(real_file_name, "results/%s_%d.txt", file_name, index);
+        file_stream = fopen(real_file_name, "r");
+        index++;
+
+        if (index > 1000) {
+            printf("Can't create result file\n");
+            return;
+        }
+    }
+
+    printf("Save to file %s: ", real_file_name);
+    file_stream = fopen(real_file_name, "w");
+    fwrite(massive, data_size, massive_length, file_stream);
+    fclose(file_stream);
+    printf("Done\n");
+}
+
 float* test_body(int massive_length, int process, int data_size, void* (*generator)(void*, int), int (*comparator)(const void*, const void*), void (*printer)(void*, int, char*), int verbose) {
 
     // ========================================================================
@@ -196,6 +247,10 @@ float* test_body(int massive_length, int process, int data_size, void* (*generat
     massive = generator(massive, massive_length);
     gettimeofday(&stop, NULL);
 
+    char file_name[32];
+    sprintf(file_name, "tsort_before_%d", sizeof(massive[0]));
+    save_massive(massive, massive_length, sizeof(massive[0]), file_name);
+
     secs = (double)(stop.tv_usec - start.tv_usec) / 1000000 + (double)(stop.tv_sec - start.tv_sec);
     if (verbose) printf("%.4f sec\n", secs);
 
@@ -209,6 +264,9 @@ float* test_body(int massive_length, int process, int data_size, void* (*generat
         return result;
     }
     gettimeofday(&stop, NULL);
+
+    sprintf(file_name, "tsort_after_%d", (int)sizeof(massive[0]));
+    save_massive(massive, massive_length, sizeof(massive[0]), file_name);
 
     secs = (double)(stop.tv_usec - start.tv_usec) / 1000000 + (double)(stop.tv_sec - start.tv_sec);
     result[1] = secs;

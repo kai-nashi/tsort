@@ -4,12 +4,7 @@
 #include <pthread.h>
 #include <math.h>
 
-struct pthread_args {
-    void*       dataPointer;
-    int         dataLength;
-    int         dataSize;
-    int         (*comparator)(const void*, const void*);
-};
+#include "tsort.h"
 
 // ============================================================================
 // = STUFF
@@ -50,8 +45,12 @@ int compair_parts(const void* pointer_a, const void* pointer_b) {
         return -1;
     }
 
-    int (*comparator)(const void*, const void*) = ((struct pthread_args *)*(int**)pointer_a)->comparator;
-    return comparator((void*)(((struct pthread_args*)*(int**)pointer_a)->dataPointer), (void*)(((struct pthread_args *)*(int**)pointer_b)->dataPointer));
+    int (*comparator)(const void*, const void*);
+    comparator = (*(struct pthread_args*)*(int**)pointer_a).comparator;
+    void* a = (void*)(((struct pthread_args*)*(int**)pointer_a)->dataPointer);
+    int ptr = *(int**)pointer_b;
+    void* b = (void*)(((struct pthread_args*)*(int**)pointer_b)->dataPointer);
+    return comparator(a, b);
 }
 
 void* merge(struct pthread_args* args, int (*comparator)(const void*, const void*), int threads_max) {
@@ -67,19 +66,18 @@ void* merge(struct pthread_args* args, int (*comparator)(const void*, const void
     int particles_remain = threads_max;
 
     int resultLength = 0;
-    for (int i=0; i<threads_max; i++) {
+    for (int i=0; i<particles_remain; i++) {
         if (args[i].dataLength > 0) {
             resultLength += args[i].dataLength;
             particles[i] = &args[i];
         } else {
             particles_remain -= 1;
-            particles[i] = NULL;
         }
     }
 
     // sort it and remove all NULL pointers by compair parts
     int dataSize = args[0].dataSize;
-    qsort(particles, threads_max, sizeof(void*), compair_parts);
+    qsort(particles, particles_remain, sizeof(void*), compair_parts);
 
     // merge particles
     void* result = malloc(resultLength * dataSize);
@@ -167,13 +165,14 @@ void* qsort_thread(void* args_pointer) {
 void* tsort(void* dataPointer, int dataLength, int dataSize, int (*comparator)(const void*, const void*), int threads_max) {
 
     if (dataLength <= 1 || threads_max < 1)
-        return dataPointer;
+        return;
 
     int shift = ceil((float)dataLength / threads_max);
     struct pthread_args args[threads_max];
     pthread_t threads[threads_max];
 
-    for (int i=0; i<threads_max; i++) {
+    int i = 0;
+    for (i=0; i<threads_max; i++) {
 
         args[i].comparator = comparator;
         args[i].dataPointer = dataPointer + shift*i*dataSize;
@@ -181,8 +180,8 @@ void* tsort(void* dataPointer, int dataLength, int dataSize, int (*comparator)(c
 
         // i+1 -> sort next <shift> elements
         if (shift*(i+1) > dataLength) {
-            if (dataLength - shift*(i+1) > 0) {
-                args[i].dataLength = dataLength - shift*(i+1);
+            if (dataLength - shift*(i) > 0) {
+                args[i].dataLength = dataLength - shift*(i);
             } else {
                 // no elements for qsort_thread;
                 args[i].dataPointer = dataPointer + dataLength*dataSize;
@@ -195,12 +194,10 @@ void* tsort(void* dataPointer, int dataLength, int dataSize, int (*comparator)(c
         int status = pthread_create(&threads[i], NULL, qsort_thread, &args[i]);
         if (status != 0) {
             printf("> tsort: can't create thread: %s\n", strerror(status));
-            return NULL;
         }
     }
 
-    int status_addr;
-    for (int i = 0; i < threads_max; i++) {
+    for (i = 0; i < threads_max; i++) {
         int status = pthread_join(threads[i], NULL);
         if (status != 0) {
             printf("> tsort: can't join thread: %s\n", strerror(status));
