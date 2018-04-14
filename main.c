@@ -22,7 +22,7 @@ int comparator_char(const void*, const void*);
 int comparator_int(const void*, const void*);
 int comparator_struct(const void*, const void*);
 
-void dialog(int*, int*, int*, int*);
+void dialog(int*, int*, int*, int*, int*);
 
 void* generator_char(void*, int);
 void* generator_int(void*, int);
@@ -34,10 +34,12 @@ void print_massive_struct(void*, int, char*);
 
 void save_massive(void*, int, int, char*);
 
-float* test_body(int, int, int, void* (*generator)(void*, int), int (*comparator)(const void*, const void*), void (*printer)(void*, int, char*), int);
-void test_suite(int, int, int, int, void* (*generator)(void*, int), int (*comparator)(const void*, const void*), void (*printer)(void*, int, char*), char*, int);
+float* test_body(int, int, int, void* (*generator)(void*, int), int (*comparator)(const void*, const void*), void (*printer)(void*, int, char*), int, int);
+void test_suite(int, int, int, int, void* (*generator)(void*, int), int (*comparator)(const void*, const void*), void (*printer)(void*, int, char*), char*, int, int);
 
 int main() {
+
+    int     save_tsort;
 
     int     length = 1e6;
     int     processes = 4;
@@ -52,28 +54,28 @@ int main() {
         for (processes=2; processes<25; processes++) {
             for (length=10; length<10000; length+=10) {
                 printf("\n\nprocess: %d; length: %d\n", processes, length);
-                test_suite(length, processes, 1, sizeof(char), generator_char, comparator_char, print_massive_char, "CHARS", verbose);
+                test_suite(length, processes, 1, sizeof(char), generator_char, comparator_char, print_massive_char, "CHARS", verbose, 0);
             }
         }
     }
 
     // CHAR
-    dialog(&length, &processes, &tests, &verbose);
-    test_suite(length, processes, tests, sizeof(char), generator_char, comparator_char, print_massive_char, "CHARS", verbose);
+    dialog(&length, &processes, &tests, &verbose, &save_tsort);
+    test_suite(length, processes, tests, sizeof(char), generator_char, comparator_char, print_massive_char, "CHARS", verbose, save_tsort);
     printf("\n\nPress enter to continue test with integers\n");
     getchar();
     printf("Starting...\n");
 
     // INT
-    dialog(&length, &processes, &tests, &verbose);
-    test_suite(length, processes, tests, sizeof(int), generator_int, comparator_int, print_massive_int, "INT", verbose);
+    dialog(&length, &processes, &tests, &verbose, &save_tsort);
+    test_suite(length, processes, tests, sizeof(int), generator_int, comparator_int, print_massive_int, "INT", verbose, save_tsort);
     printf("\n\nPress enter to continue test with structures\n");
     getchar();
     printf("Starting...\n");
 
     // STRUCT
-    dialog(&length, &processes, &tests, &verbose);
-    test_suite(length, processes, tests, sizeof(struct test_struct), generator_struct, comparator_struct, print_massive_struct, "STRUCT", verbose);
+    dialog(&length, &processes, &tests, &verbose, &save_tsort);
+    test_suite(length, processes, tests, sizeof(struct test_struct), generator_struct, comparator_struct, print_massive_struct, "STRUCT", verbose, save_tsort);
     printf("\n\nPress enter to exit...\n");
     getchar();
 
@@ -152,7 +154,7 @@ int comparator_struct(const void* pointer_a, const void* pointer_b) {
     return comparator_int((void*)&(((struct test_struct*)pointer_a)->value0), (void*)&(((struct test_struct *)pointer_b)->value0));
 }
 
-void dialog(int* length, int* processes, int* tests, int* verbose) {
+void dialog(int* length, int* processes, int* tests, int* verbose, int* save_tsort) {
     printf("Length of arrays: ");
     scanf("%d", length);
 
@@ -164,6 +166,10 @@ void dialog(int* length, int* processes, int* tests, int* verbose) {
 
     printf("Verbose: ");
     scanf("%d", verbose);
+
+    printf("Save to file (for tsert): ");
+    scanf("%d", save_tsort);
+
     getchar(); // remove endline from last scanf
 }
 
@@ -259,7 +265,7 @@ void save_massive(void* massive, int massive_length, int data_size, char file_na
     printf("Done\n");
 }
 
-float* test_body(int massive_length, int process, int data_size, void* (*generator)(void*, int), int (*comparator)(const void*, const void*), void (*printer)(void*, int, char*), int verbose) {
+float* test_body(int massive_length, int process, int data_size, void* (*generator)(void*, int), int (*comparator)(const void*, const void*), void (*printer)(void*, int, char*), int verbose, int save_tsort) {
 
     // ========================================================================
     // BEFORE
@@ -314,7 +320,7 @@ float* test_body(int massive_length, int process, int data_size, void* (*generat
 
     char file_name[32];
     sprintf(file_name, "tsort_before_%d", data_size);
-    //save_massive(massive, massive_length, data_size, file_name);
+    if (save_tsort) save_massive(massive, massive_length, data_size, file_name);
 
     secs = (double)(stop.tv_usec - start.tv_usec) / 1000000 + (double)(stop.tv_sec - start.tv_sec);
     if (verbose) printf("%.4f sec\n", secs);
@@ -331,7 +337,7 @@ float* test_body(int massive_length, int process, int data_size, void* (*generat
     gettimeofday(&stop, NULL);
 
     sprintf(file_name, "tsort_after_%d", data_size);
-    //save_massive(massive, massive_length, data_size, file_name);
+    if (save_tsort) save_massive(massive, massive_length, data_size, file_name);
 
     if (check_massiv(massive, massive_length, data_size)) {
         printf("massive sorting error. Exit");
@@ -354,7 +360,7 @@ float* test_body(int massive_length, int process, int data_size, void* (*generat
     return result;
 }
 
-void test_suite(int length, int processes, int tests, int data_size, void* (*generator)(void*, int), int (*comparator)(const void*, const void*), void (*printer)(void*, int, char*), char* test_name, int verbose) {
+void test_suite(int length, int processes, int tests, int data_size, void* (*generator)(void*, int), int (*comparator)(const void*, const void*), void (*printer)(void*, int, char*), char* test_name, int verbose, int save_tsort) {
 
     char    result_qsort_char[10], result_tsort_char[10];
 
@@ -370,7 +376,7 @@ void test_suite(int length, int processes, int tests, int data_size, void* (*gen
 
     for (int i=0; i < tests; i++) {
         if (verbose) printf("\nStarting test #%d ...\n", i);
-        result = test_body(length, processes, data_size, generator, comparator, printer, verbose);
+        result = test_body(length, processes, data_size, generator, comparator, printer, verbose, save_tsort);
         result_qsort[i] = *(result+0);
         result_tsort[i] = *(result+1);
     }
