@@ -51,7 +51,7 @@ void* merge(struct pthread_args* args, int (*comparator)(const void*, const void
     void* particles[threads_max];
     int particles_remain = threads_max;
 
-    int resultLength = 0;
+    long long resultLength = 0;
     for (int i=0; i<threads_max; i++) {
         if (args[i].dataLength > 0) {
             resultLength += args[i].dataLength;
@@ -68,13 +68,13 @@ void* merge(struct pthread_args* args, int (*comparator)(const void*, const void
     // merge particles
     void* result = malloc(resultLength * dataSize);
     if (result == NULL) {
-        printf("\n> tsort: Can't allocate memory. Need %d bytes. Exit.\n", resultLength*dataSize);
+        printf("\n> tsort: Can't allocate memory. Need %lli bytes. Exit.\n", resultLength*dataSize);
         return NULL;
     }
 
     void* result_pointer = args[0].dataPointer;
     void* particle_tmp;
-    int result_index = 0;
+    long long result_index = 0;
     while (particles_remain > 0) {
 
         memcpy(result+result_index*dataSize, ((struct pthread_args *)particles[0])->dataPointer, dataSize);
@@ -114,12 +114,19 @@ void* qsort_thread(void* args_pointer) {
     qsort(args.dataPointer, args.dataLength, args.dataSize, args.comparator);
 }
 
-void* tsort(void* dataPointer, int dataLength, int dataSize, int (*comparator)(const void*, const void*), int threads_max) {
+void* tsort(void* dataPointer, long long dataLength, int dataSize, int (*comparator)(const void*, const void*), int threads_max) {
 
-    if (dataLength <= 1 || threads_max < 1)
-        return;
+    if (dataLength <= 0) {
+        printf("\n> tsort: dataLength should be positive: %lli\n", dataLength);
+        return NULL;
+    }
 
-    int shift = ceil((float)dataLength / threads_max);
+    if (threads_max <= 0) {
+        printf("\n> tsort: threads_max should be positive: %d\n", threads_max);
+        return NULL;
+    }
+
+    long long shift = ceil((long double)dataLength / threads_max);
     struct pthread_args args[threads_max];
     pthread_t threads[threads_max];
 
@@ -145,6 +152,7 @@ void* tsort(void* dataPointer, int dataLength, int dataSize, int (*comparator)(c
         int status = pthread_create(&threads[i], NULL, qsort_thread, &args[i]);
         if (status != 0) {
             printf("\n> tsort: can't create thread: %s\n", strerror(status));
+            return NULL;
         }
     }
 
