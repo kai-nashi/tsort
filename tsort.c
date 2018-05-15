@@ -126,7 +126,7 @@ void* tsort(void* dataPointer, long long dataLength, int dataSize, int (*compara
         return NULL;
     }
 
-    long long shift = ceil((long double)dataLength / threads_max);
+    long long shift = ceill((long double)dataLength / threads_max);
     struct pthread_args args[threads_max];
     pthread_t threads[threads_max];
 
